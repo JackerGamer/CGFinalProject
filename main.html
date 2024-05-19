@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Audio and Light Control</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif; /* Set sans-serif font family */
+            color: rgb(255, 255, 255); /* Set text color to gray */
+        }
+        canvas {
+            display: block;
+        }
+        .left-controls, .right-controls {
+            position: absolute;
+            top: 10px;
+            z-index: 10;
+        }
+        .left-controls {
+            left: 10px;
+        }
+        .right-controls {
+            right: 10px;
+        }
+        .control-item {
+            margin-bottom: 5px;
+        }
+        #lightControlLabel, #movementControlLabel {
+            margin-bottom: 10px; /* Added some margin for better spacing */
+        }
+        #movementControlLabel {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="left-controls">
+        <div id="lightControlLabel">Light Controls</div>
+        <div class="control-item">
+            X: <input type="range" id="lightX" class="slider" min="-50" max="50" value="0">
+        </div>
+        <div class="control-item">
+            Y: <input type="range" id="lightY" class="slider" min="0" max="50" value="10">
+        </div>
+        <div class="control-item">
+            Z: <input type="range" id="lightZ" class="slider" min="-50" max="50" value="5">
+        </div>
+        <div class="control-item">
+            Color: <input type="color" id="lightColor" value="#ffffff">
+        </div>
+    </div>
+    <div class="right-controls">
+        <div class="control-item">
+            Guitar: <audio controls src="74872__oymaldonado__funk-guitar3.wav"></audio>
+        </div>
+        <div class="control-item">
+            Drums: <audio controls src="136974__broumbroum__otwo-drums-track.mp3"></audio>
+        </div>
+        <div class="control-item">
+            Piano: <audio controls src="528222__nadetastic__electric-piano-jazz-chords.wav"></audio>
+        </div>
+        <div class="control-item">
+            Saxophone: <audio controls src="100476__iluppai__saxophone-chinese-melody.wav"></audio>
+        </div>
+    </div>
+    <div id="movementControlLabel">Use W, A, S, D to move, Space/Ctrl to ascend/descend, Q/E to rotate</div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        let scene, camera, renderer, controls, directionalLight, instrumentGroup;
+
+        function init() {
+            // Create scene, camera, and renderer
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // Set background color to sky blue
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({antialias: true});
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true; // Enable shadows
+            document.body.appendChild(renderer.domElement);
+
+            // Add ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            // Add directional light and enable shadows
+            directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(0, 10, 5);
+            directionalLight.castShadow = true; // Enable shadow casting
+            directionalLight.shadow.mapSize.width = 2048; // Shadow resolution
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 50;
+            directionalLight.shadow.camera.left = -50; // Expand shadow frustum
+            directionalLight.shadow.camera.right = 50;
+            directionalLight.shadow.camera.top = 50;
+            directionalLight.shadow.camera.bottom = -50;
+            scene.add(directionalLight);
+
+            // Load models and set shadows
+            const loader = new THREE.GLTFLoader();
+            loader.load('music_band_low_poly/scene.gltf', function (gltf) {
+                instrumentGroup = gltf.scene;
+                instrumentGroup.scale.set(7, 7, 7);
+                instrumentGroup.traverse(function(node) {
+                    if (node.isMesh) {
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                    }
+                });
+                scene.add(instrumentGroup);
+            });
+            loader.load('simple_concert_stage/scene.gltf', function (gltf) {
+                gltf.scene.scale.set(0.05, 0.05, 0.05);
+                gltf.scene.position.set(-1.5, -1.7, 27);
+                gltf.scene.traverse(function(node) {
+                    if (node.isMesh) {
+                        node.receiveShadow = true;
+                    }
+                });
+                scene.add(gltf.scene);
+            });
+
+            // Control the camera
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // Set camera position
+            camera.position.set(0, 2, 10);
+
+            // Listen to control changes
+            document.getElementById('lightX').addEventListener('input', function (e) {
+                directionalLight.position.x = parseFloat(e.target.value);
+            });
+            document.getElementById('lightY').addEventListener('input', function (e) {
+                directionalLight.position.y = parseFloat(e.target.value);
+            });
+            document.getElementById('lightZ').addEventListener('input', function (e) {
+                directionalLight.position.z = parseFloat(e.target.value);
+            });
+            document.getElementById('lightColor').addEventListener('input', function (e) {
+                directionalLight.color.set(e.target.value);
+            });
+
+            // Handle window resizing
+            window.addEventListener('resize', onWindowResize, false);
+
+            // Handle keyboard input
+            window.addEventListener('keydown', onDocumentKeyDown, false);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onDocumentKeyDown(event) {
+            var keyCode = event.which;
+            var moveDistance = 0.5; // Increased move speed
+            var rotateAngle = Math.PI / 32; // Small rotation angle per key press
+            // W, A, S, D for movement, Space for up, Ctrl for down, Q and E for rotation
+            if (keyCode == 87) { // W
+                instrumentGroup.position.z -= moveDistance;
+            } else if (keyCode == 83) { // S
+                instrumentGroup.position.z += moveDistance;
+            } else if (keyCode == 65) { // A
+                instrumentGroup.position.x -= moveDistance;
+            } else if (keyCode == 68) { // D
+                instrumentGroup.position.x += moveDistance;
+            } else if (keyCode == 32) { // Space
+                instrumentGroup.position.y += moveDistance;
+            } else if (keyCode == 17) { // Ctrl
+                instrumentGroup.position.y -= moveDistance;
+            } else if (keyCode == 81) { // Q
+                instrumentGroup.rotation.y += rotateAngle;
+            } else if (keyCode == 69) { // E
+                instrumentGroup.rotation.y -= rotateAngle;
+            }
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+</html>
